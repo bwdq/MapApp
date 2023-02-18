@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<title>MapApp</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--<script src="/cdn-cgi/apps/head/WPJs-UUGTIS9fqV8OPt3DoFHcHo.js"></script>
+-->
+<link rel="stylesheet" href="./css/leaflet.css">
+<link rel="stylesheet" href="./css/index.css">
+<script src="./js/leaflet.js"></script>
+<link rel="stylesheet" href="./css/Control.FullScreen.css">
+<script src="./js/Control.FullScreen.js"></script>
+</head>
+<body>
+<style>	
+	html, body {
+		height: 100%;
+		margin: 0;
+		padding: 0;
+	  }
+	#map {
+		height: 100%;
+	}
+	  
+	#location {
+		position: absolute;
+		left: 0px;
+		top: 0px;
+		z-index: 110;
+		font-size: 10px;
+		color: black;
+		font-family: Verdana, Helvetica;
+	}
+	
+	.gridTile {
+		color: white;
+		text-shadow:
+		-1px -1px 0 #000,  
+		1px -1px 0 #000,
+		-1px 1px 0 #000,
+		1px 1px 0 #000;
+		font-weight: bold;
+	}
+    </style>
+<div id="map"></div>
+<div class="popupWindow" id="markerEdit">
+<span>Modify a marker</span>
+<button class="closeBtn" id="closeBtn">Close</button>
+<input placeholder="Label" id="markerLabelInput">
+<select id="markerSelect">
+<option value="A">A</option>
+<option value="B">B</option>
+<option value="C">C</option>
+<option value="D">D</option>
+<option value="E">E</option>
+<option value="F">F</option>
+</select>
+</div>
+<script>
+	var origin = convertPointToLatLng(L.point(gup("x","0"), gup("y","0")));
+	
+	var map = L.map('map', {
+		crs: L.CRS.Simple,
+		minZoom: 3,
+		maxZoom: 9,
+  		fullscreenControl: true,
+  		fullscreenControlOptions: {
+    		position: 'topleft'
+  		}
+	}).setView([origin.lat, origin.lng], gup("zoom", "4"));
+
+	var addMarkerOnClick = false;
+	var currentlyEditedMarker;
+	var MapIcon = L.Icon.extend({
+		options: {
+			iconSize:     [32, 32]
+		}
+	});
+
+	L.Control.addMarkerBtn = L.Control.extend({
+		onAdd: function(map) {
+			var markerBtn = L.DomUtil.create("button");
+			markerBtn.id = "addMarkerBtn";
+			markerBtn.textContent = "Add marker";
+			markerBtn.className = "addBtn";
+			return markerBtn;
+		}
+	});
+	L.control.addMarkerBtn = function(opts) {
+		return new L.Control.addMarkerBtn(opts);
+	};
+	L.control.addMarkerBtn({position: 'topright'}).addTo(map);
+
+	var icons = {
+		A: new MapIcon({iconUrl: "icons/A.png", iconSize: [20, 20]}),
+		B: new MapIcon({iconUrl: "icons/B.png", iconSize: [20, 20]}),
+		C: new MapIcon({iconUrl: "icons/C.png", iconSize: [20, 20]}),
+		D: new MapIcon({iconUrl: "icons/D.png", iconSize: [20, 20]}),
+		E: new MapIcon({iconUrl: "icons/E.png", iconSize: [20, 20]}),
+		F: new MapIcon({iconUrl: "icons/F.png", iconSize: [20, 20]})
+	};
+
+	function addMarker(type, loc, label) {
+		var marker = L.marker(loc);
+		marker.type = type;
+		marker.label = label;
+		marker.loc = loc;
+		marker.setIcon(icons[type]);
+		marker.bindTooltip(label, {direction: "top"});
+		marker.on("click", function() {
+			document.getElementById("markerLabelInput").value = marker.label;
+			document.getElementById("markerSelect").value = marker.type;
+			document.getElementById("markerEdit").style.display = "block";
+			currentlyEditedMarker = this;
+		});
+		marker.addTo(map);
+		return this;
+	}
+
+	var saveBtn = document.createElement("button");
+	saveBtn.textContent = "Save";
+	saveBtn.id = "saveBtn";
+	saveBtn.addEventListener("click", function() {
+		var marSe = document.getElementById("markerSelect");
+		var loc = [currentlyEditedMarker.getLatLng().lat, currentlyEditedMarker.getLatLng().lng];
+		map.removeLayer(currentlyEditedMarker);
+		deleteMarkerFromServer(currentlyEditedMarker.type, currentlyEditedMarker.loc, currentlyEditedMarker.label);
+		addMarker(marSe.options[marSe.selectedIndex].value, loc, document.getElementById("markerLabelInput").value);
+		addMarkerToServer(marSe.options[marSe.selectedIndex].value, loc, document.getElementById("markerLabelInput").value);
+		document.getElementById("markerEdit").style.display = "none";
+	});
+	document.getElementById("markerEdit").appendChild(saveBtn);
+
+	var deleteBtn = document.createElement("button");
+	deleteBtn.textContent = "Delete";
+	deleteBtn.id = "deleteBtn";
+	deleteBtn.addEventListener("click", function() {
+		map.removeLayer(currentlyEditedMarker);
+		deleteMarkerFromServer(currentlyEditedMarker.type, currentlyEditedMarker.loc, currentlyEditedMarker.label);
+		document.getElementById("markerEdit").style.display = "none";
+	});
+	document.getElementById("markerEdit").appendChild(deleteBtn);
+
+	var addMarkerBtn = document.getElementById("addMarkerBtn");
+	addMarkerBtn.addEventListener("click", function(ev){
+		ev.preventDefault();
+		ev.stopPropagation();
+		document.getElementById("map").style.cursor = "crosshair";
+		addMarkerOnClick = true;
+	});
+
+	var closeMarkerBtn = document.getElementById("closeBtn");
+	closeMarkerBtn.addEventListener("click", function() {
+		document.getElementById("markerEdit").style.display = "none";
+	});
+
+	// Get all markers from the server and display them
+	function getMarkersFromServer() {
+		console.log(new URL(document.location).searchParams.get("markers"));
+
+		var req = new XMLHttpRequest();
+		req.open("GET", "marker/" + new URL(document.location).searchParams.get("markers"));
+		req.onreadystatechange = function() {
+			if(req.readyState === 4) {
+				if(req.status === 200) {
+					var data = JSON.parse(req.responseText);
+					for(var i=0; i<data.length; i++) {
+						addMarker(data[i].type, [data[i].x, data[i].y], data[i].label);
+					}
+				}
+			}
+		};
+		req.send();
+	}
+	getMarkersFromServer();
+	function deleteMarkerFromServer(type, loc, label) {
+		var req = new XMLHttpRequest();
+		req.open("DELETE", "marker/" + new URL(document.location).searchParams.get("markers"));
+		req.setRequestHeader("Content-Type", "application/json");
+		req.send(JSON.stringify({type: type, x: loc[0], y: loc[1], label: label}));
+	}
+
+	function addMarkerToServer(type, loc, label) {
+		var req = new XMLHttpRequest();
+		req.open("PUT", "marker/" + new URL(document.location).searchParams.get("markers"));
+		req.setRequestHeader("Content-Type", "application/json");
+		req.send(JSON.stringify({type: type, x: loc[0], y: loc[1], label: label}));
+	}
+
+	L.tileLayer('./tiles/{z}/{x}_{y}.png', {
+		tileSize: 100,
+		id: 'nevah',
+		attribution: ""
+	}).addTo(map);
+	
+	L.GridLayer.DebugCoords = L.GridLayer.extend({
+		createTile: function (coords) {
+			var factor = Math.pow(2,9 - coords.z);
+			var x = ((coords.x) * factor);
+			var y = ((coords.y) * factor);
+			var div = document.createElement('div');
+			div.innerHTML = "(" + x + "," + y + ")";
+			div.style.width = 100 + 'px';
+			div.style.height = 100 + 'px';
+			div.style.fontSize = '10';
+			div.style.borderStyle = 'solid';
+			div.style.borderWidth = '1px';
+			div.style.borderColor = '#000000';
+			div.className = "gridTile";
+			return div;
+		}
+	});
+	
+	L.gridLayer.debugCoords = function(opts) {
+		return new L.GridLayer.DebugCoords(opts);
+	};
+	
+	map.addLayer( L.gridLayer.debugCoords(
+	{
+		tileSize: 100
+	}));
+	
+	//Events
+	map.on('moveend', onMoveEnd);
+	map.on("click", function(ev) {
+		if(addMarkerOnClick) {
+			document.getElementById("map").style.cursor = "";
+			addMarker("A", [ev.latlng.lat, ev.latlng.lng], "");
+			addMarkerToServer("A", [ev.latlng.lat, ev.latlng.lng], "");
+			addMarkerOnClick = false;
+		}
+	});
+
+		
+	function onMoveEnd(e) {
+		var coords = convertLatLngToPoint(map.getCenter());
+		location.hash = "#x=" + Math.round(coords.x * 100) / 100 + "&y=" + Math.round(coords.y * 100) / 100 + "&zoom=" + map.getZoom();
+	}
+		
+	function convertLatLngToPoint(latlng) {
+		var coords = L.CRS.Simple.latLngToPoint(latlng, 9);
+		var x = coords.x / 100.0;
+		var y = coords.y / 100.0;
+		return L.point(x, y);
+	}
+
+	function convertPointToLatLng(coords) {
+		var lat = coords.x * 100;
+		var lng = coords.y * 100;
+		var latlng = L.CRS.Simple.pointToLatLng(L.point(lat, lng), 9);
+		return latlng;
+	}
+
+	//Get URL Parameter
+	function gup(name,dflt) {
+		name = name.replace(/[[]/,"\\\[").replace(/[]]/,"\\\]");
+		var regexS = "[?#&]"+name+"=([^&#]*)";
+		var regex = new RegExp( regexS );
+		var results = regex.exec( window.location.href );
+		if( results == null )
+			return dflt;
+		else
+			return results[1];
+	}
+
+</script>
+</body></html>

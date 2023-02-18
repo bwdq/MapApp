@@ -1,0 +1,85 @@
+.closeBtn {
+	color: black;
+	font-weight: bold;
+	background-color: gray;
+	border: solid 1px white;
+	width: 75px;
+	border-radius: 3px;
+}
+
+#markerControls {
+	position: absolute;
+	top: 0;
+	right: 0;
+	z-index: 9000;
+}
+
+.popupWindow {
+	color: white;
+	display: none;
+	position: absolute;
+	margin: auto;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	padding: 15px;
+	width: 275px;
+	height: 80px;
+	z-index: 9000;
+	border-radius: 5px;
+	background-color: rgba(0, 60, 100, 0.95);
+}
+
+
+.popupWindow a {
+	color: white;
+	text-decoration: none;
+	font-weight: bold;
+	text-align: center;
+	font-size: 32px;
+}
+
+.popupWindow span {
+	color: white;
+	font-size: 24px;
+	font-weight: bold;
+}
+
+.addBtn {
+	margin: 20px;
+	z-index: 9000;
+	width: 140px;
+	font-weight: bold;
+	height: 25px;
+	color: white;
+	background-color: rgba(0, 60, 100, 0.95);
+	border: solid 1px white;
+	border-radius: 3px;
+}
+
+#markerLabelInput {
+	width: 150px;
+}
+
+#deleteBtn {
+	width: 125px;
+	font-weight: bold;
+	height: 25px;
+	color: white;
+	background-color: red;
+	border: solid 1px orange;
+	border-radius: 3px;
+}
+
+#saveBtn {
+	color: white;
+	font-weight: bold;
+	height: 25px;
+	margin-top: 5px;
+	margin-right: 5px;
+	width: 125px;
+	border: solid 1px orange;
+	background-color: green;
+	border-radius: 3px;
+}
